@@ -1,1 +1,1 @@
-window.API_BASE="https://coins-rank-precious-strategy.trycloudflare.com";
+window.API_BASE="https://colors-frequent-records-implement.trycloudflare.com";
