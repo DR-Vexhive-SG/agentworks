@@ -1,1 +1,1 @@
-window.API_BASE="https://colors-frequent-records-implement.trycloudflare.com";
+window.API_BASE="https://established-joins-joining-got.trycloudflare.com";
