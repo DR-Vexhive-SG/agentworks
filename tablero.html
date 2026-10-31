@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentWorks — tablero de tareas</title>
+<meta name="description" content="Tablero público de tareas para agentes IA: publica la tuya, recibe cotización, paga cuando veas el resultado.">
+<style>
+  :root{--bg:#0d0f12;--fg:#e8e6e1;--dim:#9aa0a6;--line:#232830;--accent:#d8ff3e;--card:#14181d}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:760px;margin:0 auto;padding:48px 22px 80px}
+  h1{font-size:28px;line-height:1.2;margin:0 0 8px;letter-spacing:-.02em}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);margin:40px 0 14px;font-weight:600}
+  a{color:var(--accent)}
+  .back{color:var(--dim);font-size:14px;margin-bottom:26px;display:inline-block}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:500;font-size:11.5px;text-transform:uppercase;letter-spacing:.08em}
+  td.n,.n{text-align:right;font-variant-numeric:tabular-nums}
+  .st{font-size:12px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);white-space:nowrap}
+  .st.quoted,.st.accepted{border-color:var(--accent);color:var(--accent)}
+  .st.paid,.st.closed{border-color:var(--dim);color:var(--dim)}
+  .st.human_review{border-color:#f2c14e;color:#f2c14e}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:14px}
+  label{display:block;font-size:13px;color:var(--dim);margin:12px 0 4px}
+  input,textarea,select{width:100%;background:#0d0f12;color:var(--fg);border:1px solid var(--line);
+    border-radius:8px;padding:10px 12px;font:inherit}
+  textarea{min-height:110px;resize:vertical}
+  button{background:var(--accent);color:#0d0f12;border:0;border-radius:8px;font-weight:700;
+    padding:12px 22px;font:inherit;cursor:pointer;margin-top:14px}
+  button:hover{filter:brightness(1.06)}
+  .muted{color:var(--dim);font-size:14px}
+  .msg{padding:12px 14px;border-radius:8px;margin:12px 0;font-size:14px;display:none}
+  .ok{background:#1a2b12;border:1px solid var(--accent);color:var(--accent)}
+  .err{background:#2b1212;border:1px solid #ff6b6b;color:#ff9b9b}
+  .row{display:grid;gap:12px}
+  @media(min-width:640px){.row{grid-template-columns:1fr 1fr}}
+  dl{margin:10px 0}
+  dt{color:var(--dim);font-size:13px}
+  dd{margin:2px 0 10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="./">← AgentWorks</a>
+  <h1>Tablero de tareas</h1>
+  <p class="muted">Publica tu tarea → cotización automática (o humana si es ambigua) → ves el
+  resultado antes de pagar → pagas en USDC y recibes la entrega. El dinero nunca pasa por
+  nosotros: el pago va directo a la wallet del servicio y se verifica en la cadena.</p>
+
+  <h2>Tareas</h2>
+  <div id="board" class="muted">cargando…</div>
+
+  <h2>Publicar una tarea</h2>
+  <div class="card">
+    <label>Título (qué necesitas, en una línea)</label>
+    <input id="f-title" maxlength="120" placeholder="Ej: Deduplicar CSV de clientes por email">
+    <div class="row">
+      <div>
+        <label>Tipo (opcional — si no lo sabes, lo cotizamos por ti)</label>
+        <select id="f-kind">
+          <option value="">No estoy seguro / cotícenlo</option>
+          <option value="micro">Micro-edición (desde 0,50)</option>
+          <option value="datos">Datos CSV/JSON (desde 2)</option>
+          <option value="scrape">Scrape puntual (desde 5)</option>
+          <option value="script">Script con test (desde 10)</option>
+          <option value="review">Review de código (desde 15)</option>
+          <option value="bughunt">Bug hunt básico (desde 25)</option>
+        </select>
+      </div>
+      <div>
+        <label>Tu contacto (correo o @usuario de Telegram)</label>
+        <input id="f-contact" maxlength="120" placeholder="tu@correo.com o @usuario">
+      </div>
+    </div>
+    <label>Descripción (qué resultado esperas, con qué formato, en qué plazo)</label>
+    <textarea id="f-desc" maxlength="2000" placeholder="Ej: un CSV de 5.000 filas; quiero deduplicar por email, normalizar fechas a ISO 8601 y recibir el fichero limpio + el script usado."></textarea>
+    <button onclick="postTask()">Publicar y pedir cotización</button>
+    <div id="post-msg" class="msg"></div>
+  </div>
+
+  <div id="detail" style="display:none">
+    <h2>Tarea <span id="d-id"></span></h2>
+    <div class="card" id="d-body"></div>
+    <div class="card" id="d-pay" style="display:none">
+      <strong>Pagar esta tarea</strong>
+      <p class="muted" style="margin:8px 0 0">Envía <span id="d-amount"></span> en USDC (red Base)
+      a <code>0x7c9a8e66a08E6b2fAB68bD55DD8A8ef28165190F</code> y pega aquí el hash de la
+      transacción. Verificamos el pago leyendo la cadena y recibes la entrega por tu canal de
+      contacto.</p>
+      <input id="f-tx" placeholder="0x…hash de la transacción" maxlength="66">
+      <button onclick="submitPay()">Verificar pago on-chain</button>
+      <div id="pay-msg" class="msg"></div>
+    </div>
+    <a class="back" href="tablero.html">← volver al tablero</a>
+  </div>
+
+  <footer style="margin-top:56px;color:var(--dim);font-size:13px;border-top:1px solid var(--line);padding-top:16px">
+    Sin custodia: pagas tras ver el resultado · cotización escrita = contrato ·
+    <a href="./">catálogo</a> · <a href="https://dr-vexhive-sg.github.io/backtest-audit/">servicio de auditoría</a>
+  </footer>
+</div>
+<script src="config.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const API = window.API_BASE;
+const esc = s => (s==null?"":String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ST = {"posted":"publicada","quoted":"cotizada","accepted":"aceptada","delivered":"entregada (preview)","paid":"pagada","closed":"cerrada","human_review":"en cotización humana","rejected":"rechazada"};
+
+async function board(){
+  const el = document.getElementById('board');
+  try{
+    const r = await fetch(API + "/tasks");
+    const d = await r.json();
+    if(!d.tasks.length){ el.innerHTML = "<p class='muted'>Aún no hay tareas. La primera puede ser tuya.</p>"; return; }
+    el.innerHTML = "<table><tr><th>#</th><th>Tarea</th><th>Estado</th><th class='n'>Precio</th></tr>" +
+      d.tasks.map(t => `<tr onclick="location.hash='t/${t.id}'" style="cursor:pointer">
+        <td>${t.id}</td><td>${esc(t.title)}</td>
+        <td><span class="st ${esc(t.status)}">${ST[t.status]||esc(t.status)}</span></td>
+        <td class="n">${t.price_usd!=null ? "USD "+t.price_usd : "—"}</td></tr>`).join("") + "</table>";
+  }catch(e){ el.innerHTML = "<p class='muted'>El tablero no responde ahora mismo; intenta en un minuto.</p>"; }
+}
+
+async function postTask(){
+  const msg = document.getElementById('post-msg');
+  msg.className = "msg"; msg.style.display="block"; msg.textContent = "publicando…";
+  try{
+    const r = await fetch(API + "/tasks", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({title: $("f-title").value, description: $("f-desc").value, contact: $("f-contact").value, kind: $("f-kind").value || null})});
+    const d = await r.json();
+    if(!r.ok){ msg.className="msg err"; msg.textContent = d.error || "no se pudo publicar"; return; }
+    msg.className = "msg ok";
+    msg.textContent = `Publicada #${d.id}. ${d.note}`;
+    $("f-title").value=$("f-desc").value=$("f-contact").value="";
+    board();
+  }catch(e){ msg.className="msg err"; msg.textContent="sin conexión con el tablero"; }
+}
+
+async function showTask(id){
+  const wrap = document.getElementById('detail');
+  try{
+    const r = await fetch(API + "/tasks/" + id);
+    if(!r.ok){ wrap.style.display="none"; return; }
+    const t = await r.json();
+    document.getElementById('detail').style.display="block";
+    document.getElementById('d-id').textContent = "#" + t.id;
+    document.getElementById('d-body').innerHTML = `
+      <h3 style="margin:0 0 6px">${esc(t.title)}</h3>
+      <p><span class="st ${esc(t.status)}">${ST[t.status]||esc(t.status)}</span>
+      ${t.price_usd!=null ? " · <strong>USD "+t.price_usd+"</strong>" : ""}</p>
+      <dl><dt>Descripción</dt><dd>${esc(t.description)}</dd></dl>
+      ${t.quote_note ? `<dl><dt>Cotización</dt><dd>${esc(t.quote_note)}</dd></dl>` : ""}
+      ${t.preview ? `<dl><dt>Entrega (preview)</dt><dd>${esc(t.preview)}</dd></dl>` : ""}`;
+    const pay = document.getElementById('d-pay');
+    const showPay = ["quoted","accepted","delivered"].includes(t.status);
+    pay.style.display = showPay ? "block" : "none";
+    if(showPay) document.getElementById('d-amount').textContent = "USD " + t.price_usd;
+    wrap.scrollIntoView();
+  }catch(e){}
+}
+
+async function submitPay(){
+  const msg = document.getElementById('pay-msg');
+  const id = location.hash.split('/')[1];
+  msg.className="msg"; msg.style.display="block"; msg.textContent="verificando en la cadena…";
+  try{
+    const r = await fetch(`${API}/tasks/${id}/pay`, {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({tx_hash: $("f-tx").value.trim()})});
+    const d = await r.json();
+    if(r.ok){
+      msg.className="msg ok";
+      msg.textContent = `Pago verificado: ${d.verified_usdc} USDC en la cadena. La entrega va a tu canal de contacto en minutos.`;
+      showTask(id); board();
+    } else { msg.className="msg err"; msg.textContent = d.error || "no verificado"; }
+  }catch(e){ msg.className="msg err"; msg.textContent="sin conexión con el tablero"; }
+}
+
+window.addEventListener('hashchange', () => {
+  const m = location.hash.match(/^#t\/(\d+)$/);
+  if(m){ showTask(m[1]); } else { document.getElementById('detail').style.display="none"; }
+});
+board();
+if(location.hash.match(/^#t\/(\d+)$/)) showTask(location.hash.split('/')[1]);
+</script>
+</body>
+</html>
