@@ -1,1 +1,1 @@
-window.API_BASE="https://develops-johnston-nissan-alive.trycloudflare.com";
+window.API_BASE="https://record-compromise-tips-photos.trycloudflare.com";
