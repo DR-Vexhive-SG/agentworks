@@ -1,1 +1,1 @@
-window.API_BASE="https://imported-surely-journalists-vol.trycloudflare.com";
+window.API_BASE="https://obvious-modes-watershed-compact.trycloudflare.com";
